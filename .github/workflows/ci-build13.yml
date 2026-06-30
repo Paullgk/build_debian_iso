@@ -27,7 +27,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y podman podman-compose bmap-tools pigz
+          sudo apt-get install -y podman podman-compose bmap-tools pigz qemu-utils
 
       - name: Make ci_build.sh executable (if needed)
         run: chmod +x .release/generate_images.sh
@@ -37,6 +37,20 @@ jobs:
           .release/generate_images.sh --tag ci
         shell: bash
 
+      - name: Upload hypervisor image artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: hypervisor-image
+          path: release-files/*virtual-cluster*.qcow2
+          if-no-files-found: error
+
+      - name: Upload VM image artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: vm-image
+          path: release-files/*guest*.qcow2
+          if-no-files-found: error
+
       - name: Collect FAI logs on failure
         if: failure()
         run: |
@@ -45,7 +59,7 @@ jobs:
 
       - name: Upload FAI logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fai-logs-${{ github.run_id }}
           path: fai-logs.tar.gz
@@ -53,3 +67,9 @@ jobs:
 
       - name: Check exit code
         run: echo "Script exited successfully!"
+  test-virtual-cluster:
+    needs: CI-build
+    uses: paullgk/virtual-cluster/.github/workflows/ansible-setup.yml@main
+    with:
+      hypervisor_image_url: /tmp/images/hypervisor.qcow2
+      vm_image_url: /tmp/images/vm.qcow2
